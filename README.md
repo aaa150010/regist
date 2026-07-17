@@ -79,13 +79,13 @@ http://127.0.0.1:17373/health
 
 当前主流程使用 SMSBower 接收 OpenAI 手机验证码。
 
-在扩展侧边栏中配置：
+接码服务固定为 `SMSBower`，侧边栏只保留以下配置：
 
-- SMS provider：选择 `SMSBower`
 - API Key：填写你的 SMSBower API Key
 - 国家：按你的需求选择，默认会使用内置国家顺序
 - 最低购买价：默认 `0.03` 美元
 - 最高购买价：默认 `0.15` 美元
+- 查询价格 / 查询余额
 
 如果账号已经满足手机号要求，页面直接进入 OAuth 授权页，则不会新增接码。
 
@@ -129,7 +129,7 @@ sub2api-{email}.json
 2. 打开扩展侧边栏。
 3. 在“微软邮箱账户池”导入 Outlook / Hotmail 账号。
 4. 配置 SMSBower API Key 和接码参数。
-5. 设置目标成功数量。
+5. 在顶部“目标数”输入框设置目标成功数量。
 6. 点击启动。
 7. 成功导出的 JSON 到 `sub2api/` 文件夹中查看。
 
@@ -148,7 +148,18 @@ sub2api-{email}.json
 - `ACCOUNT_DEACTIVATED`：OpenAI 提示账号被删除或停用，会标记为已用并切换下一个账号。
 - `refresh_token_invalid`：微软邮箱 refresh token 失效，无法继续读取邮箱验证码。
 - 手机号已被使用：SMSBower 取到的号码无法通过 OpenAI 验证，会换号重试，超过次数后失败。
-- 请求次数过多：触发限流后会等待一段时间再继续。
+- 请求次数过多：认证页等待 20 秒后只重试一次；如果仍然限流，会停止整个批次，避免立即换邮箱继续请求。
+
+## 单并发策略
+
+- 浏览器扩展始终单并发运行，达到顶部设置的成功目标数后自动停止。
+- 每个新账号开始前清理 OpenAI / ChatGPT cookies、localStorage、sessionStorage、IndexedDB 和缓存。
+- 已标记为 `used` 或已经成功导出的邮箱不会再次进入候选池。
+- 账号选择顺序为：未尝试账号优先，其次按最早失败时间重试，避免立即重复同一个失败账号。
+- 正常步骤按页面完成信号继续，不设置全局 20 秒延迟；只有明确的认证页限流才进入 20 秒冷却。
+- 代理、Plus 支付、PayPal、远程邮箱 API 和邮箱别名均不会参与当前流程。
+
+这些措施用于减少重复请求和状态串号，但无法保证第三方平台一定不会触发安全校验。请按平台规则使用你有权操作的账号。
 
 ## 安全提醒
 
@@ -173,6 +184,7 @@ sub2api-{email}.json
 ```bash
 node --check background.js
 node --check sidepanel/sidepanel.js
+node --test
 PYTHONPYCACHEPREFIX=/tmp/gujumpgate-pycache python3 -m py_compile scripts/hotmail_helper.py
 ```
 

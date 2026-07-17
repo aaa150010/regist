@@ -37,6 +37,7 @@ importScripts(
   'flows/openai/mail-rules.js',
   'background/message-router.js',
   'background/verification-flow.js',
+  'background/existing-plus-run-policy.js',
   'background/auto-run-controller.js',
   'background/plus-success-session-upload.js',
   'background/tab-runtime.js',
@@ -595,6 +596,13 @@ const DEFAULT_SUB2API_ACCOUNT_PRIORITY = 1;
 const EXISTING_PLUS_OAUTH_JSON_PANEL_MODE = 'existing-plus-oauth-json';
 const DEFAULT_PANEL_MODE = EXISTING_PLUS_OAUTH_JSON_PANEL_MODE;
 const DEFAULT_EXISTING_PLUS_JSON_OUTPUT_DIR = 'sub2api';
+const EXISTING_PLUS_AUTH_RATE_LIMIT_COOLDOWN_MS = Number(
+  self.MultiPageExistingPlusRunPolicy?.AUTH_RATE_LIMIT_COOLDOWN_MS
+) || 20000;
+const EXISTING_PLUS_AUTH_RATE_LIMIT_MAX_ATTEMPTS = Number(
+  self.MultiPageExistingPlusRunPolicy?.AUTH_RATE_LIMIT_MAX_ATTEMPTS
+) || 2;
+const EXISTING_PLUS_NODE_START_DELAY_MS = 500;
 const EXISTING_PLUS_SESSION_CLEAR_ORIGINS = [
   'https://auth.openai.com',
   'https://auth0.openai.com',
@@ -1168,6 +1176,7 @@ const PERSISTED_SETTING_DEFAULTS = {
   localCpaJsonRelativeAuthDir: DEFAULT_LOCAL_CPA_JSON_RELATIVE_AUTH_DIR,
   existingPlusAccountsText: '',
   existingPlusJsonOutputDir: DEFAULT_EXISTING_PLUS_JSON_OUTPUT_DIR,
+  existingPlusTargetSuccessCount: 1,
   vpsUrl: '',
   vpsPassword: '',
   localCpaStep9Mode: DEFAULT_LOCAL_CPA_STEP9_MODE,
@@ -1421,8 +1430,8 @@ const PERSISTED_SETTING_DEFAULTS = {
   smsBowerCountryId: DEFAULT_SMSBOWER_COUNTRY_ORDER[0].id,
   smsBowerCountryLabel: DEFAULT_SMSBOWER_COUNTRY_ORDER[0].label,
   smsBowerCountryFallback: DEFAULT_SMSBOWER_COUNTRY_ORDER.slice(1),
-  smsBowerMinPrice: '',
-  smsBowerMaxPrice: '',
+  smsBowerMinPrice: '0.03',
+  smsBowerMaxPrice: '0.15',
   smsBowerPreferredPrice: '',
   smsVerificationNumberApiKey: '',
   smsVerificationNumberBaseUrl: DEFAULT_SMS_VERIFICATION_NUMBER_BASE_URL,
@@ -4381,6 +4390,8 @@ function normalizePersistentSettingValue(key, value) {
         .join('\n');
     case 'existingPlusJsonOutputDir':
       return normalizeExistingPlusOutputDir(value);
+    case 'existingPlusTargetSuccessCount':
+      return normalizeRunCount(value);
     case 'gmailBaseEmail':
     case 'mail2925BaseEmail':
     case 'currentMail2925AccountId':
@@ -13733,7 +13744,16 @@ async function executeNode(nodeId, options = {}) {
   try {
     await setNodeStatus(normalizedNodeId, 'running');
     await addLog('开始执行', 'info', { nodeId: normalizedNodeId });
-    await humanStepDelay();
+    if (getPanelMode(state) === EXISTING_PLUS_OAUTH_JSON_PANEL_MODE) {
+      const startDelayMs = ['existing-plus-prepare-oauth', 'existing-plus-save-json'].includes(normalizedNodeId)
+        ? 0
+        : EXISTING_PLUS_NODE_START_DELAY_MS;
+      if (startDelayMs > 0) {
+        await sleepWithStop(startDelayMs);
+      }
+    } else {
+      await humanStepDelay();
+    }
     const fetchRetryPolicy = typeof getStepFetchNetworkRetryPolicy === 'function'
       ? getStepFetchNetworkRetryPolicy(step)
       : null;
@@ -13914,7 +13934,11 @@ async function executeNodeAndWait(nodeId, delayAfter = 2000) {
 
   // Extra delay for page transitions / DOM updates
   if (delayAfter > 0) {
-    await sleepWithStop(delayAfter + Math.floor(Math.random() * 1200));
+    const latestState = await getState();
+    const transitionJitterMs = getPanelMode(latestState) === EXISTING_PLUS_OAUTH_JSON_PANEL_MODE
+      ? 0
+      : Math.floor(Math.random() * 1200);
+    await sleepWithStop(delayAfter + transitionJitterMs);
   }
 }
 
@@ -14707,6 +14731,9 @@ const autoRunController = self.MultiPageBackgroundAutoRunController?.createAutoR
   getStopRequested: () => stopRequested,
   hasSavedNodeProgress,
   isAddPhoneAuthFailure,
+  isAuthRateLimitFailure: (error) => (
+    self.MultiPageExistingPlusRunPolicy?.isAuthRateLimitFailure?.(error) === true
+  ),
   isCloudCheckoutAlreadyPaidFailure,
   isPhoneSmsPlatformRateLimitFailure,
   isPlusCheckoutNonFreeTrialFailure,
@@ -14717,6 +14744,22 @@ const autoRunController = self.MultiPageBackgroundAutoRunController?.createAutoR
   isStep4Route405RecoveryLimitFailure,
   isSignupUserAlreadyExistsFailure,
   isStopError,
+  finalizeAutoRunAccountStatus: async ({ status, state = {}, reason = '' } = {}) => {
+    if (
+      getPanelMode(state) !== EXISTING_PLUS_OAUTH_JSON_PANEL_MODE
+      || !state.existingPlusCurrentAccountId
+      || !['failed', 'stopped'].includes(String(status || '').trim().toLowerCase())
+    ) {
+      return false;
+    }
+    await setExistingPlusAccountStatus(state.existingPlusCurrentAccountId, {
+      status: 'failed',
+      email: state.existingPlusCurrentEmail || state.email || '',
+      reason: String(reason || '').trim(),
+      finishedAt: Date.now(),
+    });
+    return true;
+  },
   launchAutoRunTimerPlan,
   normalizeAutoRunFallbackThreadIntervalMinutes,
   onAutoRunRoundSuccess: LEGACY_IP_PROXY_FEATURE_ENABLED
@@ -16090,6 +16133,8 @@ const step7Executor = self.MultiPageBackgroundStep7?.createStep7Executor({
   sendToContentScriptResilient,
   startOAuthFlowTimeoutWindow,
   STEP6_MAX_ATTEMPTS,
+  AUTH_RATE_LIMIT_COOLDOWN_MS: EXISTING_PLUS_AUTH_RATE_LIMIT_COOLDOWN_MS,
+  AUTH_RATE_LIMIT_MAX_ATTEMPTS: EXISTING_PLUS_AUTH_RATE_LIMIT_MAX_ATTEMPTS,
   sleepWithStop,
   throwIfStopped,
 });
@@ -16615,9 +16660,7 @@ async function setExistingPlusAccountStatus(accountId, updates = {}) {
 async function pickVerifiedExistingPlusHotmailAccount(accounts = [], state = {}, options = {}) {
   const nodeId = options?.nodeId || 'existing-plus-prepare-oauth';
   const candidates = normalizeHotmailAccounts(accounts)
-    .filter((account) => account && String(account.refreshToken || '').trim())
-    .slice()
-    .sort(() => Math.random() - 0.5);
+    .filter((account) => account && String(account.refreshToken || '').trim());
   const failures = [];
 
   for (const candidate of candidates) {
@@ -16665,24 +16708,23 @@ async function executeExistingPlusPrepareOauth(state = {}) {
   const existingPlusStatuses = latestState.existingPlusAccountStatuses && typeof latestState.existingPlusAccountStatuses === 'object'
     ? latestState.existingPlusAccountStatuses
     : {};
-  const availableHotmailAccounts = normalizeHotmailAccounts(latestState.hotmailAccounts)
-    .filter((account) => (
+  const normalizedHotmailAccounts = normalizeHotmailAccounts(latestState.hotmailAccounts);
+  const availableHotmailAccounts = self.MultiPageExistingPlusRunPolicy?.rankExistingPlusHotmailCandidates
+    ? self.MultiPageExistingPlusRunPolicy.rankExistingPlusHotmailCandidates(
+      normalizedHotmailAccounts,
+      existingPlusStatuses
+    )
+    : normalizedHotmailAccounts.filter((account) => (
       account
-      && (account.status === 'authorized' || String(account.refreshToken || '').trim())
-      && (!account.used || (
-        existingPlusStatuses[account.id]
-        && existingPlusStatuses[account.id].status !== 'success'
-      ))
+      && account.used !== true
+      && existingPlusStatuses[account.id]?.status !== 'success'
       && String(account.refreshToken || '').trim()
     ));
-  const hotmailAccount = availableHotmailAccounts.length
-    ? availableHotmailAccounts[Math.floor(Math.random() * availableHotmailAccounts.length)]
-    : null;
-  if (!hotmailAccount) {
+  if (!availableHotmailAccounts.length) {
     throw new Error(`${HOTMAIL_ACCOUNTS_EXHAUSTED_ERROR_PREFIX}没有可用的微软邮箱账号。请先在“微软邮箱账户池”导入至少一个已授权且未使用的账号。`);
   }
   const verifiedHotmailAccount = await pickVerifiedExistingPlusHotmailAccount(
-    [hotmailAccount, ...availableHotmailAccounts.filter((account) => account.id !== hotmailAccount.id)],
+    availableHotmailAccounts,
     latestState,
     { nodeId: state?.nodeId || 'existing-plus-prepare-oauth' }
   );
@@ -16695,6 +16737,14 @@ async function executeExistingPlusPrepareOauth(state = {}) {
 
   const api = getExistingPlusLocalApi();
   const authRequest = await api.createAuthorizationRequest();
+  const smsBowerCountrySelection = self.MultiPageExistingPlusRunPolicy?.resolveSmsBowerCountrySelection?.(
+    latestState,
+    DEFAULT_SMSBOWER_COUNTRY_ORDER
+  ) || {
+    id: DEFAULT_SMSBOWER_COUNTRY_ORDER[0].id,
+    label: DEFAULT_SMSBOWER_COUNTRY_ORDER[0].label,
+    fallback: DEFAULT_SMSBOWER_COUNTRY_ORDER.slice(1),
+  };
   const keepProfileRunnerProxy = Boolean(
     latestState.profileRunnerProxyLocked && latestState.ipProxyEnabled
   );
@@ -16716,13 +16766,13 @@ async function executeExistingPlusPrepareOauth(state = {}) {
     phoneSmsReuseEnabled: false,
     freePhoneReuseEnabled: false,
     freePhoneReuseAutoEnabled: false,
-    heroSmsCountryId: DEFAULT_SMSBOWER_COUNTRY_ORDER[0].id,
-    heroSmsCountryLabel: DEFAULT_SMSBOWER_COUNTRY_ORDER[0].label,
-    heroSmsCountryFallback: DEFAULT_SMSBOWER_COUNTRY_ORDER.slice(1),
+    heroSmsCountryId: smsBowerCountrySelection.id,
+    heroSmsCountryLabel: smsBowerCountrySelection.label,
+    heroSmsCountryFallback: smsBowerCountrySelection.fallback,
     smsBowerBaseUrl: DEFAULT_SMSBOWER_BASE_URL,
-    smsBowerCountryId: DEFAULT_SMSBOWER_COUNTRY_ORDER[0].id,
-    smsBowerCountryLabel: DEFAULT_SMSBOWER_COUNTRY_ORDER[0].label,
-    smsBowerCountryFallback: DEFAULT_SMSBOWER_COUNTRY_ORDER.slice(1),
+    smsBowerCountryId: smsBowerCountrySelection.id,
+    smsBowerCountryLabel: smsBowerCountrySelection.label,
+    smsBowerCountryFallback: smsBowerCountrySelection.fallback,
     verificationResendCount: 0,
     phoneCodeWaitSeconds: DEFAULT_PHONE_CODE_WAIT_SECONDS,
     phoneCodeTimeoutWindows: DEFAULT_PHONE_CODE_TIMEOUT_WINDOWS,
@@ -16764,13 +16814,13 @@ async function executeExistingPlusPrepareOauth(state = {}) {
     phoneSmsReuseEnabled: false,
     freePhoneReuseEnabled: false,
     freePhoneReuseAutoEnabled: false,
-    heroSmsCountryId: DEFAULT_SMSBOWER_COUNTRY_ORDER[0].id,
-    heroSmsCountryLabel: DEFAULT_SMSBOWER_COUNTRY_ORDER[0].label,
-    heroSmsCountryFallback: DEFAULT_SMSBOWER_COUNTRY_ORDER.slice(1),
+    heroSmsCountryId: smsBowerCountrySelection.id,
+    heroSmsCountryLabel: smsBowerCountrySelection.label,
+    heroSmsCountryFallback: smsBowerCountrySelection.fallback,
     smsBowerBaseUrl: DEFAULT_SMSBOWER_BASE_URL,
-    smsBowerCountryId: DEFAULT_SMSBOWER_COUNTRY_ORDER[0].id,
-    smsBowerCountryLabel: DEFAULT_SMSBOWER_COUNTRY_ORDER[0].label,
-    smsBowerCountryFallback: DEFAULT_SMSBOWER_COUNTRY_ORDER.slice(1),
+    smsBowerCountryId: smsBowerCountrySelection.id,
+    smsBowerCountryLabel: smsBowerCountrySelection.label,
+    smsBowerCountryFallback: smsBowerCountrySelection.fallback,
     verificationResendCount: 0,
     phoneCodeWaitSeconds: DEFAULT_PHONE_CODE_WAIT_SECONDS,
     phoneCodeTimeoutWindows: DEFAULT_PHONE_CODE_TIMEOUT_WINDOWS,

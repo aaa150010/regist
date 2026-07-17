@@ -27,6 +27,7 @@
       getWorkflowNodeIds,
       hasSavedNodeProgress,
       isAddPhoneAuthFailure,
+      isAuthRateLimitFailure,
       isCloudCheckoutAlreadyPaidFailure,
       isGpcTaskEndedFailure,
       isHostedCheckoutGenericErrorFailure,
@@ -37,6 +38,7 @@
       isStep4Route405RecoveryLimitFailure,
       isSignupUserAlreadyExistsFailure,
       isStopError,
+      finalizeAutoRunAccountStatus,
       launchAutoRunTimerPlan,
       normalizeAutoRunFallbackThreadIntervalMinutes,
       persistAutoRunTimerPlan,
@@ -658,11 +660,24 @@
               return;
             }
 
+            const recordState = await getState();
+            if (typeof finalizeAutoRunAccountStatus === 'function') {
+              try {
+                await finalizeAutoRunAccountStatus({
+                  status,
+                  state: recordState,
+                  reason,
+                  error: errorLike,
+                });
+              } catch (statusError) {
+                await addLog(`更新当前账号运行状态失败：${getErrorMessage(statusError)}`, 'warn');
+              }
+            }
+
             if (typeof appendAccountRunRecord !== 'function') {
               return;
             }
 
-            const recordState = await getState();
             const recordStatus = resolveAutoRunAccountRecordStatus(status, recordState, errorLike);
             const record = await appendAccountRunRecord(recordStatus, recordState, reason);
             if (record) {
@@ -725,6 +740,8 @@
             const reason = getErrorMessage(err);
             roundSummary.failureReasons.push(reason);
             const blockedByAccountDeactivated = /ACCOUNT_DEACTIVATED::|account_deactivated|账号已被删除或停用|账户已被删除或停用/i.test(reason);
+            const blockedByAuthRateLimit = typeof isAuthRateLimitFailure === 'function'
+              && isAuthRateLimitFailure(err);
             const blockedByPhoneSmsRateLimit = typeof isPhoneSmsPlatformRateLimitFailure === 'function'
               && isPhoneSmsPlatformRateLimitFailure(err);
             const blockedByPhoneNoSupply = !blockedByPhoneSmsRateLimit
@@ -768,6 +785,7 @@
               && attemptRun < maxPlusNonFreeTrialAttempts;
             const canRetry = !blockedByAddPhone
               && !blockedByAccountDeactivated
+              && !blockedByAuthRateLimit
               && !blockedByPhoneNoSupply
               && !blockedByHotmailAccountsExhausted
               && !blockedByPlusNonFreeTrial
@@ -782,6 +800,7 @@
             const reachedKeepSameEmailRetryLimit = keepSameEmailUntilAddPhone
               && !blockedByAddPhone
               && !blockedByAccountDeactivated
+              && !blockedByAuthRateLimit
               && !blockedByPhoneNoSupply
               && !blockedByHotmailAccountsExhausted
               && !blockedByPlusNonFreeTrial
@@ -989,6 +1008,29 @@
               attemptRun += 1;
               reuseExistingProgress = false;
               continue;
+            }
+
+            if (blockedByAuthRateLimit) {
+              roundSummary.status = 'failed';
+              roundSummary.finalFailureReason = reason;
+              await setState({
+                autoRunRoundSummaries: serializeAutoRunRoundSummaries(totalRuns, roundSummaries),
+              });
+              await appendRoundRecordIfNeeded('failed', reason, err);
+              cancelPendingCommands('认证页连续触发请求限制，当前批次已停止。');
+              await broadcastStopToContentScripts();
+              await addLog(
+                `第 ${targetRun}/${totalRuns} 轮认证页按 20 秒冷却后仍然请求过多。该限制通常影响当前出口，已停止整个批次，避免立即换邮箱继续请求。`,
+                'warn'
+              );
+              stoppedEarly = true;
+              await broadcastAutoRunStatus('stopped', {
+                currentRun: targetRun,
+                totalRuns,
+                attemptRun,
+                sessionId: 0,
+              });
+              break;
             }
 
             if (blockedByAccountDeactivated) {

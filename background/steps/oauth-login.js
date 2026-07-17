@@ -25,6 +25,8 @@
       sendToContentScriptResilient,
       startOAuthFlowTimeoutWindow,
       STEP6_MAX_ATTEMPTS,
+      AUTH_RATE_LIMIT_COOLDOWN_MS = 20000,
+      AUTH_RATE_LIMIT_MAX_ATTEMPTS = 2,
       sleepWithStop = null,
       throwIfStopped,
     } = deps;
@@ -300,6 +302,7 @@
 
       let attempt = 0;
       let lastError = null;
+      let rateLimitAttemptCount = 0;
 
       while (attempt < STEP6_MAX_ATTEMPTS) {
         throwIfStopped();
@@ -441,11 +444,15 @@
           }
           if (isRateLimitExceededError(err)) {
             lastError = err;
-            if (attempt >= STEP6_MAX_ATTEMPTS) {
+            rateLimitAttemptCount += 1;
+            if (
+              attempt >= STEP6_MAX_ATTEMPTS
+              || rateLimitAttemptCount >= AUTH_RATE_LIMIT_MAX_ATTEMPTS
+            ) {
               break;
             }
-            const waitMs = 20000;
-            await addLog(`认证页触发 rate_limit_exceeded，等待 ${Math.ceil(waitMs / 1000)} 秒后再重试。`, 'warn', {
+            const waitMs = Math.max(1000, Number(AUTH_RATE_LIMIT_COOLDOWN_MS) || 20000);
+            await addLog(`认证页触发 rate_limit_exceeded，等待 ${Math.ceil(waitMs / 1000)} 秒后仅重试一次。`, 'warn', {
               step: completionStep,
               stepKey: 'oauth-login',
             });
@@ -487,6 +494,11 @@
         }
       }
 
+      if (isRateLimitExceededError(lastError)) {
+        throw new Error(
+          `RATE_LIMIT_EXCEEDED::认证页等待 ${Math.ceil((Number(AUTH_RATE_LIMIT_COOLDOWN_MS) || 20000) / 1000)} 秒后仍然请求过多，已停止连续登录。最后原因：${getErrorMessage(lastError)}`
+        );
+      }
       throw new Error(`步骤 ${completionStep}：判断失败后已重试 ${STEP6_MAX_ATTEMPTS - 1} 次，仍未成功。最后原因：${getErrorMessage(lastError)}`);
     }
 

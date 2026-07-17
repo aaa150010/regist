@@ -519,6 +519,7 @@ async function handle405ResendError(step, remainingTimeout = 30000) {
 
 const SIGNUP_ENTRY_TRIGGER_PATTERN = /免费注册|立即注册|注册|创建(?:账号|帐号|账户|帐户)|sign\s*up|register|create\s*account|create\s+account|get\s*started/i;
 const SIGNUP_EMAIL_INPUT_SELECTOR = [
+  'input[data-gujumpgate-email-input="true"]',
   'input[type="email"]',
   'input[autocomplete="email"]',
   'input[autocomplete="username"]',
@@ -564,10 +565,32 @@ const SIGNUP_SWITCH_TO_PHONE_PATTERN = new RegExp([
 const SIGNUP_MORE_OPTIONS_PATTERN = /更多选项|其它方式|其他方式|more\s+options|show\s+more|other\s+(?:options|ways)/i;
 const SIGNUP_WORK_EMAIL_PATTERN = /\u5de5\u4f5c|business|work\s+email/i;
 
+function suppressEmailInputSuggestions(input) {
+  if (!input || typeof input.setAttribute !== 'function') {
+    return input || null;
+  }
+
+  input.setAttribute('data-gujumpgate-email-input', 'true');
+  input.setAttribute('autocomplete', 'off');
+  input.setAttribute('autocapitalize', 'none');
+  input.setAttribute('autocorrect', 'off');
+  input.setAttribute('spellcheck', 'false');
+  input.setAttribute('data-lpignore', 'true');
+  input.setAttribute('data-1p-ignore', 'true');
+
+  const form = input.form || input.closest?.('form') || null;
+  form?.setAttribute?.('autocomplete', 'off');
+
+  if (document.activeElement === input && typeof input.blur === 'function') {
+    input.blur();
+  }
+  return input;
+}
+
 function getSignupEmailInput() {
   const input = document.querySelector(SIGNUP_EMAIL_INPUT_SELECTOR);
   if (input && isVisibleElement(input)) {
-    return input;
+    return suppressEmailInputSuggestions(input);
   }
 
   const fallback = Array.from(document.querySelectorAll('input')).find((el) => {
@@ -587,7 +610,7 @@ function getSignupEmailInput() {
       || /email|电子邮件|邮箱/i.test(combinedText);
   });
 
-  return fallback || null;
+  return fallback ? suppressEmailInputSuggestions(fallback) : null;
 }
 
 function getSignupPhoneInput() {
@@ -3956,7 +3979,8 @@ function isLoginEmailLikeInput(input) {
   const summary = getLoginInputAttributeText(input);
   const nameId = `${summary.name} ${summary.id}`;
   const labelText = `${summary.placeholder} ${summary.ariaLabel}`;
-  return summary.type === 'email'
+  return input?.getAttribute?.('data-gujumpgate-email-input') === 'true'
+    || summary.type === 'email'
     || summary.autocomplete === 'email'
     || /email/i.test(nameId)
     || /email|电子邮件|邮箱/i.test(labelText);
@@ -3964,6 +3988,7 @@ function isLoginEmailLikeInput(input) {
 
 function getLoginEmailInput() {
   const input = Array.from(document.querySelectorAll([
+    'input[data-gujumpgate-email-input="true"]',
     'input[type="email"]',
     'input[autocomplete="email"]',
     'input[name="email"]',
@@ -3984,7 +4009,7 @@ function getLoginEmailInput() {
   if ((isLoginPhoneUsernameKind() || isLoginPhoneEntryPageText()) && !isLoginEmailLikeInput(input)) {
     return null;
   }
-  return input;
+  return suppressEmailInputSuggestions(input);
 }
 
 function getLoginPhoneInput() {
@@ -6393,6 +6418,7 @@ async function step6LoginFromEmailPage(payload, snapshot) {
   if (!emailInput) {
     throw new Error('在登录页未找到邮箱输入框。URL: ' + location.href);
   }
+  suppressEmailInputSuggestions(emailInput);
 
   if ((emailInput.value || '').trim() !== payload.email) {
     await humanPause(500, 1400);
@@ -6637,6 +6663,7 @@ async function submitAddEmailAndContinue(payload = {}) {
   if (!emailInput) {
     throw new Error('添加邮箱页未找到邮箱输入框。URL: ' + location.href);
   }
+  suppressEmailInputSuggestions(emailInput);
 
   await humanPause(500, 1400);
   await performOperationWithDelay({ stepKey: 'oauth-login', kind: 'fill', label: 'add-email' }, async () => {

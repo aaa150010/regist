@@ -9,6 +9,39 @@
   display: none !important;
 }
 
+#settings-card,
+#row-hotmail-service-mode,
+#row-hotmail-remote-base-url,
+#row-hotmail-alias-enabled,
+#row-outlook-alias-max,
+#phone-verification-section #row-phone-verification-enabled,
+#row-signup-method,
+#row-phone-signup-relogin-after-bind-email,
+#row-phone-sms-provider,
+#row-phone-sms-provider-order,
+#row-phone-sms-provider-order-actions,
+#row-hero-sms-platform,
+#row-phone-code-settings-group,
+#row-free-phone-reuse-enabled,
+#row-free-phone-reuse-auto-enabled,
+#row-free-reusable-phone,
+#row-hero-sms-preferred-activation,
+.hero-sms-price-control-preferred,
+.hero-sms-price-control-reuse {
+  display: none !important;
+}
+
+#hotmail-section,
+#row-hotmail-local-base-url,
+#row-phone-verification-fold,
+#row-hero-sms-country,
+#row-hero-sms-country-fallback,
+#row-hero-sms-acquire-priority,
+#row-hero-sms-api-key,
+#row-hero-sms-max-price {
+  display: flex !important;
+}
+
 #row-flow-select,
 #row-account-access-strategy,
 #contribution-mode-panel,
@@ -492,8 +525,15 @@ header {
   flex-wrap: wrap;
 }
 
+.run-count-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .run-count-input {
-  width: 42px;
+  width: 64px;
   padding: 6px 4px;
   text-align: center;
   background: var(--bg-field);

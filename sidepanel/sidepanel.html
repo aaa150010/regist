@@ -35,8 +35,10 @@
       <div class="run-group">
         <button id="btn-contribution-mode" class="btn btn-outline btn-sm btn-contribution-mode" type="button"
           aria-pressed="false" title="打开项目仓库说明页">使用说明</button>
-        <input type="number" id="input-run-count" class="run-count-input" value="1" min="1" title="运行次数" />
-        <button id="btn-auto-run" class="btn btn-success" title="自动执行全部步骤">
+        <label class="run-count-label" for="input-run-count">目标数</label>
+        <input type="number" id="input-run-count" class="run-count-input" value="1" min="1"
+          aria-label="目标成功导出数量" title="达到这个成功导出数量后自动停止" />
+        <button id="btn-auto-run" class="btn btn-success" title="单并发运行，达到目标成功数后自动停止">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
             <polygon points="5 3 19 12 5 21 5 3" />
           </svg>
@@ -1369,7 +1371,7 @@
         <span class="data-label">回调</span>
         <div class="data-inline data-value-actions">
           <span id="display-localhost-url" class="data-value data-value-fill mono truncate">等待中...</span>
-          <button id="btn-save-settings" class="btn btn-outline btn-sm data-inline-btn" type="button">保存</button>
+          <button id="btn-save-settings" class="btn btn-outline btn-sm data-inline-btn" type="button" hidden>保存</button>
         </div>
       </div>
     </div>
@@ -1794,7 +1796,7 @@
     <div id="phone-verification-section" class="data-card phone-verification-card">
       <div class="section-mini-header">
         <div class="section-mini-copy">
-          <span class="section-label">接码设置</span>
+          <span class="section-label">SMSBower 接码</span>
           <span class="data-value"></span>
         </div>
         <div id="row-phone-verification-enabled" class="section-mini-actions phone-verification-header-actions">
@@ -1838,13 +1840,6 @@
               <span class="data-label">接码服务商</span>
               <select id="select-phone-sms-provider" class="data-select mono">
                 <option value="smsbower" selected>SMSBower</option>
-                <option value="hero-sms">HeroSMS</option>
-                <option value="5sim">5sim</option>
-                <option value="nexsms">NexSMS</option>
-                <option value="sms-verification-number">SMS Verification Number</option>
-                <option value="grizzlysms">GrizzlySMS</option>
-                <option value="smspool">SMSPool</option>
-                <option value="chatgpt-api">ChatGPT API 接码</option>
               </select>
             </div>
             <div class="data-row" id="row-phone-sms-provider-order" style="display:none;">
@@ -1915,13 +1910,13 @@
               </select>
             </div>
             <div class="data-row" id="row-hero-sms-api-key" style="display:none;">
-              <span class="data-label">接码 API</span>
+              <span class="data-label">SMSBower Key</span>
               <div class="input-with-icon">
                 <input type="password" id="input-hero-sms-api-key" class="data-input data-input-with-icon mono"
-                  placeholder="请输入 HeroSMS API Key" />
+                  placeholder="请输入 SMSBower API Key" />
                 <button id="btn-toggle-hero-sms-api-key" class="input-icon-btn" type="button"
-                  data-password-toggle="input-hero-sms-api-key" data-show-label="显示 HeroSMS API Key"
-                  data-hide-label="隐藏 HeroSMS API Key" aria-label="显示 HeroSMS API Key" title="显示 HeroSMS API Key"></button>
+                  data-password-toggle="input-hero-sms-api-key" data-show-label="显示 SMSBower API Key"
+                  data-hide-label="隐藏 SMSBower API Key" aria-label="显示 SMSBower API Key" title="显示 SMSBower API Key"></button>
               </div>
             </div>
             <div class="data-row" id="row-five-sim-api-key" style="display:none;">
@@ -2020,18 +2015,18 @@
                 </div>
                 <div class="hero-sms-price-controls-grid">
                   <div class="hero-sms-price-control">
-                    <span class="hero-sms-settings-caption">最低购买价</span>
+                    <span class="hero-sms-settings-caption">最低购买价 (USD)</span>
                     <div class="setting-controls">
-                      <input type="number" id="input-hero-sms-min-price" class="data-input auto-delay-input mono hero-sms-max-price-input" placeholder="0.05" min="0" step="0.0001" title="接码最低购买价；可空（空=不设下限）" />
+                      <input type="number" id="input-hero-sms-min-price" class="data-input auto-delay-input mono hero-sms-max-price-input" value="0.03" placeholder="0.03" min="0" step="0.0001" title="接码最低购买价（美元）；可空（空=不设下限）" />
                     </div>
                   </div>
                   <div class="hero-sms-price-control">
-                    <span class="hero-sms-settings-caption">价格上限</span>
+                    <span class="hero-sms-settings-caption">价格上限 (USD)</span>
                     <div class="setting-controls">
-                      <input type="number" id="input-hero-sms-max-price" class="data-input auto-delay-input mono hero-sms-max-price-input" placeholder="0.12" min="0" step="0.0001" title="接码价格上限；可空（空=不设上限）" />
+                      <input type="number" id="input-hero-sms-max-price" class="data-input auto-delay-input mono hero-sms-max-price-input" value="0.15" placeholder="0.15" min="0" step="0.0001" title="接码价格上限（美元）；可空（空=不设上限）" />
                     </div>
                   </div>
-                  <div class="hero-sms-price-control">
+                  <div class="hero-sms-price-control hero-sms-price-control-preferred">
                     <span class="hero-sms-settings-caption">指定档位</span>
                     <div class="setting-controls">
                       <input type="number" id="input-hero-sms-preferred-price" class="data-input auto-delay-input mono hero-sms-max-price-input" placeholder="例如 0.0512（可空）" min="0" step="0.0001" title="优先尝试该价格档位；可空（空=按优先级策略）" />
@@ -2285,7 +2280,7 @@
   <section id="steps-section">
     <div class="steps-header">
       <span class="section-label">流程</span>
-      <span id="steps-progress" class="steps-progress">0 / 9</span>
+      <span id="steps-progress" class="steps-progress">0 / 6</span>
     </div>
     <div class="steps-list"></div>
   </section>

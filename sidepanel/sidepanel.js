@@ -718,7 +718,7 @@ const PLUS_CHECKOUT_PROFILE_SETTING_KEYS = Object.freeze([
   'hostedCheckoutVerificationPollAttempts',
   'hostedCheckoutVerificationPollIntervalSeconds',
 ]);
-const FIXED_PLUS_MODE_ENABLED = true;
+const FIXED_PLUS_MODE_ENABLED = false;
 const GUIDE_REPOSITORY_URL = 'https://github.com/FoundZiGu/GuJumpgate';
 const SIGNUP_METHOD_EMAIL = 'email';
 const SIGNUP_METHOD_PHONE = 'phone';
@@ -762,12 +762,14 @@ let nexSmsCountrySelectionOrder = [];
 let nexSmsCountryMenuSearchKeyword = '';
 const nexSmsCountrySearchTextById = new Map();
 let stepDefinitions = getStepDefinitionsForMode(false, {
+  panelMode: 'existing-plus-oauth-json',
   plusPaymentMethod: currentPlusPaymentMethod,
   plusAccountAccessStrategy: currentPlusAccountAccessStrategy,
   signupMethod: currentSignupMethod,
   phoneSignupReloginAfterBindEmailEnabled: currentPhoneSignupReloginAfterBindEmailEnabled,
 });
 let workflowNodes = getWorkflowNodesForMode(false, {
+  panelMode: 'existing-plus-oauth-json',
   plusPaymentMethod: currentPlusPaymentMethod,
   plusAccountAccessStrategy: currentPlusAccountAccessStrategy,
   signupMethod: currentSignupMethod,
@@ -5208,8 +5210,8 @@ function collectSettingsPayload() {
     ? currentPhoneSmsMaxPriceValue
     : normalizeFiveSimMaxPriceValue(latestState?.fiveSimMaxPrice || '');
   const smsBowerMaxPriceValue = phoneSmsProviderValue === phoneSmsProviderSmsBower
-    ? currentPhoneSmsMaxPriceValue
-    : normalizeHeroSmsMaxPriceValue(latestState?.smsBowerMaxPrice || '');
+    ? (currentPhoneSmsMaxPriceValue || '0.15')
+    : normalizeHeroSmsMaxPriceValue(latestState?.smsBowerMaxPrice || '0.15');
   const smsVerificationNumberMaxPriceValue = phoneSmsProviderValue === phoneSmsProviderSmsVerificationNumber
     ? currentPhoneSmsMaxPriceValue
     : normalizeHeroSmsMaxPriceValue(latestState?.smsVerificationNumberMaxPrice || '');
@@ -5226,8 +5228,8 @@ function collectSettingsPayload() {
     ? currentPhoneSmsMinPriceValue
     : normalizePhoneSmsMinPriceValueSafe(latestState?.fiveSimMinPrice || '', PHONE_SMS_PROVIDER_FIVE_SIM);
   const smsBowerMinPriceValue = phoneSmsProviderValue === phoneSmsProviderSmsBower
-    ? currentPhoneSmsMinPriceValue
-    : normalizePhoneSmsMinPriceValueSafe(latestState?.smsBowerMinPrice || '', phoneSmsProviderSmsBower);
+    ? (currentPhoneSmsMinPriceValue || '0.03')
+    : normalizePhoneSmsMinPriceValueSafe(latestState?.smsBowerMinPrice || '0.03', phoneSmsProviderSmsBower);
   const smsVerificationNumberMinPriceValue = phoneSmsProviderValue === phoneSmsProviderSmsVerificationNumber
     ? currentPhoneSmsMinPriceValue
     : normalizePhoneSmsMinPriceValueSafe(latestState?.smsVerificationNumberMinPrice || '', phoneSmsProviderSmsVerificationNumber);
@@ -5610,6 +5612,7 @@ function collectSettingsPayload() {
     existingPlusJsonOutputDir: typeof inputExistingPlusJsonOutputDir !== 'undefined' && inputExistingPlusJsonOutputDir
       ? normalizeExistingPlusJsonOutputDirInput(inputExistingPlusJsonOutputDir.value)
       : DEFAULT_EXISTING_PLUS_JSON_OUTPUT_DIR,
+    existingPlusTargetSuccessCount: getRunCountValue(),
     vpsUrl: inputVpsUrl.value.trim(),
     vpsPassword: inputVpsPassword.value,
     localCpaStep9Mode: getSelectedLocalCpaStep9Mode(),
@@ -5624,7 +5627,7 @@ function collectSettingsPayload() {
         : latestState?.sub2apiAccountPriority
     ),
     sub2apiDefaultProxyName: inputSub2ApiDefaultProxy.value.trim(),
-    ipProxyEnabled: getSelectedIpProxyEnabledSafe(),
+    ipProxyEnabled: existingPlusModeSelected ? false : getSelectedIpProxyEnabledSafe(),
     ipProxyService: selectedIpProxyService,
     ipProxyMode: currentIpProxyServiceProfile.mode,
     ipProxyApiUrl: currentIpProxyServiceProfile.apiUrl,
@@ -5646,7 +5649,7 @@ function collectSettingsPayload() {
     ipProxyRegion: currentIpProxyServiceProfile.region,
     codex2apiUrl: inputCodex2ApiUrl.value.trim(),
     codex2apiAdminKey: inputCodex2ApiAdminKey.value.trim(),
-    plusModeEnabled: fixedPlusModeEnabled,
+    plusModeEnabled: existingPlusModeSelected ? false : fixedPlusModeEnabled,
     plusPaymentMethod,
     plusCheckoutMode: selectedPlusCheckoutMode,
     plusCheckoutProfiles: nextPlusCheckoutProfiles,
@@ -5739,10 +5742,10 @@ function collectSettingsPayload() {
       hotmailAccounts: hotmailAccountsForSave,
       currentHotmailAccountId: String(latestState?.currentHotmailAccountId || '').trim(),
     } : {}),
-    hotmailServiceMode: getSelectedHotmailServiceMode(),
+    hotmailServiceMode: existingPlusModeSelected ? HOTMAIL_SERVICE_MODE_LOCAL : getSelectedHotmailServiceMode(),
     hotmailRemoteBaseUrl: inputHotmailRemoteBaseUrl.value.trim(),
     hotmailLocalBaseUrl: inputHotmailLocalBaseUrl.value.trim(),
-    hotmailAliasEnabled: typeof inputHotmailAliasEnabled !== 'undefined' && inputHotmailAliasEnabled
+    hotmailAliasEnabled: !existingPlusModeSelected && typeof inputHotmailAliasEnabled !== 'undefined' && inputHotmailAliasEnabled
       ? normalizeHotmailAliasEnabledValue(inputHotmailAliasEnabled.checked)
       : false,
     outlookAliasMaxPerAccount: typeof inputOutlookAliasMaxPerAccount !== 'undefined' && inputOutlookAliasMaxPerAccount
@@ -5799,7 +5802,9 @@ function collectSettingsPayload() {
     autoRunDelayMinutes: inputAutoDelayMinutes
       ? normalizeAutoDelayMinutes(inputAutoDelayMinutes.value)
       : AUTO_DELAY_DEFAULT_MINUTES,
-    autoStepDelaySeconds: normalizeAutoStepDelaySeconds(inputAutoStepDelaySeconds.value),
+    autoStepDelaySeconds: existingPlusModeSelected
+      ? 0
+      : normalizeAutoStepDelaySeconds(inputAutoStepDelaySeconds.value),
     plusHostedCheckoutOauthDelaySeconds: typeof inputPlusHostedCheckoutOauthDelaySeconds !== 'undefined' && inputPlusHostedCheckoutOauthDelaySeconds
       ? normalizePlusHostedCheckoutOauthDelaySeconds(inputPlusHostedCheckoutOauthDelaySeconds.value)
       : 0,
@@ -5849,13 +5854,13 @@ function collectSettingsPayload() {
     oauthFlowTimeoutEnabled: typeof inputOAuthFlowTimeoutEnabled !== 'undefined' && inputOAuthFlowTimeoutEnabled
       ? Boolean(inputOAuthFlowTimeoutEnabled.checked)
       : true,
-    phoneVerificationEnabled: effectivePhoneVerificationEnabled,
+    phoneVerificationEnabled: existingPlusModeSelected ? true : effectivePhoneVerificationEnabled,
     signupMethod: effectiveSignupMethod,
     phoneSignupReloginAfterBindEmailEnabled: typeof inputPhoneSignupReloginAfterBindEmail !== 'undefined' && inputPhoneSignupReloginAfterBindEmail
       ? Boolean(inputPhoneSignupReloginAfterBindEmail.checked)
       : false,
-    phoneSmsProvider: phoneSmsProviderValue,
-    phoneSmsProviderOrder: phoneSmsProviderOrderValue,
+    phoneSmsProvider: existingPlusModeSelected ? phoneSmsProviderSmsBower : phoneSmsProviderValue,
+    phoneSmsProviderOrder: existingPlusModeSelected ? [phoneSmsProviderSmsBower] : phoneSmsProviderOrderValue,
     verificationResendCount: normalizeVerificationResendCount(
       inputVerificationResendCount?.value,
       DEFAULT_VERIFICATION_RESEND_COUNT
@@ -5877,10 +5882,10 @@ function collectSettingsPayload() {
     grizzlySmsServiceCode: latestState?.grizzlySmsServiceCode || 'dr',
     smsPoolApiKey: smsPoolApiKeyValue,
     smsPoolServiceCode: latestState?.smsPoolServiceCode || '671',
-    phoneSmsReuseEnabled: phoneSmsReuseEnabledValue,
-    heroSmsReuseEnabled: heroSmsReuseEnabledValue,
-    freePhoneReuseEnabled: freePhoneReuseEnabledValue,
-    freePhoneReuseAutoEnabled: freePhoneReuseAutoEnabledValue,
+    phoneSmsReuseEnabled: existingPlusModeSelected ? false : phoneSmsReuseEnabledValue,
+    heroSmsReuseEnabled: existingPlusModeSelected ? false : heroSmsReuseEnabledValue,
+    freePhoneReuseEnabled: existingPlusModeSelected ? false : freePhoneReuseEnabledValue,
+    freePhoneReuseAutoEnabled: existingPlusModeSelected ? false : freePhoneReuseAutoEnabledValue,
     phoneAutoReleaseOnStopEnabled: phoneAutoReleaseOnStopEnabledValue,
     whatsappPhoneVerificationRestartEnabled: typeof inputWhatsappPageRestartEnabled !== 'undefined' && inputWhatsappPageRestartEnabled
       ? Boolean(inputWhatsappPageRestartEnabled.checked)
@@ -11041,7 +11046,14 @@ function updateSignupMethodUI(options = {}) {
 }
 
 function updatePhoneVerificationSettingsUI() {
-  const rawEnabled = Boolean(inputPhoneVerificationEnabled?.checked);
+  const existingPlusOnly = normalizePanelMode(
+    typeof getSelectedPanelMode === 'function' ? getSelectedPanelMode() : latestState?.panelMode
+  ) === EXISTING_PLUS_OAUTH_JSON_PANEL_MODE;
+  if (existingPlusOnly) {
+    if (inputPhoneVerificationEnabled) inputPhoneVerificationEnabled.checked = true;
+    if (selectPhoneSmsProvider) selectPhoneSmsProvider.value = PHONE_SMS_PROVIDER_SMSBOWER;
+  }
+  const rawEnabled = existingPlusOnly || Boolean(inputPhoneVerificationEnabled?.checked);
   const rawPlusModeEnabled = typeof inputPlusModeEnabled !== 'undefined' && inputPlusModeEnabled
     ? Boolean(inputPlusModeEnabled.checked)
     : Boolean(latestState?.plusModeEnabled);
@@ -11080,7 +11092,7 @@ function updatePhoneVerificationSettingsUI() {
     ? Boolean(capabilityState.canShowPhoneSettings)
     : true;
   const enabled = canShowPhoneSettings && rawEnabled;
-  const showSettings = enabled && phoneVerificationSectionExpanded;
+  const showSettings = enabled && (existingPlusOnly || phoneVerificationSectionExpanded);
   const selectedSignupMethodForPhoneSettings = typeof getSelectedSignupMethod === 'function'
     ? getSelectedSignupMethod()
     : normalizeSignupMethod(latestState?.signupMethod || DEFAULT_SIGNUP_METHOD);
@@ -11108,9 +11120,11 @@ function updatePhoneVerificationSettingsUI() {
   const grizzlySmsProviderValue = typeof PHONE_SMS_PROVIDER_GRIZZLYSMS !== 'undefined' ? PHONE_SMS_PROVIDER_GRIZZLYSMS : 'grizzlysms';
   const smsPoolProviderValue = typeof PHONE_SMS_PROVIDER_SMSPOOL !== 'undefined' ? PHONE_SMS_PROVIDER_SMSPOOL : 'smspool';
   const chatGptApiProviderValue = typeof PHONE_SMS_PROVIDER_CHATGPT_API !== 'undefined' ? PHONE_SMS_PROVIDER_CHATGPT_API : 'chatgpt-api';
-  const provider = typeof getSelectedPhoneSmsProvider === 'function'
+  const provider = existingPlusOnly
+    ? smsBowerProviderValue
+    : (typeof getSelectedPhoneSmsProvider === 'function'
     ? getSelectedPhoneSmsProvider()
-    : normalizeProvider(selectPhoneSmsProvider?.value || latestState?.phoneSmsProvider || heroProviderValue);
+    : normalizeProvider(selectPhoneSmsProvider?.value || latestState?.phoneSmsProvider || heroProviderValue));
   const heroProvider = provider === heroProviderValue;
   const fiveSimProvider = provider === fiveSimProviderValue;
   const nexSmsProvider = provider === nexSmsProviderValue;
@@ -11122,10 +11136,10 @@ function updatePhoneVerificationSettingsUI() {
   const heroLikeProvider = heroProvider || smsBowerProvider || smsVerificationNumberProvider || grizzlySmsProvider || smsPoolProvider;
   const priceCapableProvider = heroLikeProvider || fiveSimProvider || nexSmsProvider;
   if (rowPhoneVerificationEnabled) {
-    rowPhoneVerificationEnabled.style.display = canShowPhoneSettings ? '' : 'none';
+    rowPhoneVerificationEnabled.style.display = canShowPhoneSettings && !existingPlusOnly ? '' : 'none';
   }
   if (rowHeroSmsPlatform) {
-    rowHeroSmsPlatform.style.display = canShowPhoneSettings ? '' : 'none';
+    rowHeroSmsPlatform.style.display = canShowPhoneSettings && !existingPlusOnly ? '' : 'none';
   }
   updateSignupMethodUI();
   if (btnTogglePhoneVerificationSection) {
@@ -11178,6 +11192,14 @@ function updatePhoneVerificationSettingsUI() {
       row.style.display = showSettings ? '' : 'none';
     }
   });
+  if (existingPlusOnly) {
+    if (rowPhoneSmsProvider) rowPhoneSmsProvider.style.display = 'none';
+    if (rowPhoneSmsProviderOrder) rowPhoneSmsProviderOrder.style.display = 'none';
+    if (rowPhoneSmsProviderOrderActions) rowPhoneSmsProviderOrderActions.style.display = 'none';
+    if (rowPhoneCodeSettingsGroup) rowPhoneCodeSettingsGroup.style.display = 'none';
+    if (rowFreePhoneReuseEnabled) rowFreePhoneReuseEnabled.style.display = 'none';
+    if (rowFreePhoneReuseAutoEnabled) rowFreePhoneReuseAutoEnabled.style.display = 'none';
+  }
   if (typeof rowWhatsappPageRestartMaxAttempts !== 'undefined' && rowWhatsappPageRestartMaxAttempts) {
     rowWhatsappPageRestartMaxAttempts.style.display = showSettings && Boolean(
       typeof inputWhatsappPageRestartEnabled !== 'undefined' && inputWhatsappPageRestartEnabled
@@ -12412,6 +12434,29 @@ function syncStepDefinitionsForMode(plusModeEnabled = false, plusPaymentMethodOr
 
 function applySettingsState(state) {
   state = normalizePlusCheckoutStateForUi(state || {});
+  if (normalizePanelMode(state?.panelMode || DEFAULT_PANEL_MODE) === EXISTING_PLUS_OAUTH_JSON_PANEL_MODE) {
+    state = {
+      ...state,
+      panelMode: EXISTING_PLUS_OAUTH_JSON_PANEL_MODE,
+      plusModeEnabled: false,
+      plusAccountAccessStrategy: PLUS_ACCOUNT_ACCESS_STRATEGY_OAUTH,
+      mailProvider: HOTMAIL_PROVIDER,
+      emailGenerator: 'duck',
+      hotmailServiceMode: HOTMAIL_SERVICE_MODE_LOCAL,
+      hotmailAliasEnabled: false,
+      phoneVerificationEnabled: true,
+      phoneSmsProvider: PHONE_SMS_PROVIDER_SMSBOWER,
+      phoneSmsProviderOrder: [PHONE_SMS_PROVIDER_SMSBOWER],
+      phoneSmsReuseEnabled: false,
+      heroSmsReuseEnabled: false,
+      freePhoneReuseEnabled: false,
+      freePhoneReuseAutoEnabled: false,
+      ipProxyEnabled: false,
+      operationDelayEnabled: true,
+      autoStepDelaySeconds: 0,
+      signupMethod: SIGNUP_METHOD_EMAIL,
+    };
+  }
   syncLocalPlusCheckoutDraftFromState(state);
   if (typeof syncStepDefinitionsForMode === 'function') {
     const stepDefinitionState = typeof resolveStepDefinitionCapabilityState === 'function'
@@ -12988,7 +13033,7 @@ function applySettingsState(state) {
     if (restoredPhoneSmsProvider === PHONE_SMS_PROVIDER_FIVE_SIM) {
       inputHeroSmsMaxPrice.value = normalizeFiveSimMaxPriceValue(state?.fiveSimMaxPrice || '');
     } else if (restoredPhoneSmsProvider === PHONE_SMS_PROVIDER_SMSBOWER) {
-      inputHeroSmsMaxPrice.value = normalizeHeroSmsMaxPriceValue(state?.smsBowerMaxPrice || '');
+      inputHeroSmsMaxPrice.value = normalizeHeroSmsMaxPriceValue(state?.smsBowerMaxPrice || '0.15');
     } else if (restoredPhoneSmsProvider === PHONE_SMS_PROVIDER_SMS_VERIFICATION_NUMBER) {
       inputHeroSmsMaxPrice.value = normalizeHeroSmsMaxPriceValue(state?.smsVerificationNumberMaxPrice || '');
     } else if (restoredPhoneSmsProvider === PHONE_SMS_PROVIDER_GRIZZLYSMS) {
@@ -13005,7 +13050,7 @@ function applySettingsState(state) {
     if (restoredPhoneSmsProvider === PHONE_SMS_PROVIDER_FIVE_SIM) {
       inputHeroSmsMinPrice.value = normalizePhoneSmsMinPriceValue(state?.fiveSimMinPrice || '', PHONE_SMS_PROVIDER_FIVE_SIM);
     } else if (restoredPhoneSmsProvider === PHONE_SMS_PROVIDER_SMSBOWER) {
-      inputHeroSmsMinPrice.value = normalizePhoneSmsMinPriceValue(state?.smsBowerMinPrice || '', restoredPhoneSmsProvider);
+      inputHeroSmsMinPrice.value = normalizePhoneSmsMinPriceValue(state?.smsBowerMinPrice || '0.03', restoredPhoneSmsProvider);
     } else if (restoredPhoneSmsProvider === PHONE_SMS_PROVIDER_SMS_VERIFICATION_NUMBER) {
       inputHeroSmsMinPrice.value = normalizePhoneSmsMinPriceValue(state?.smsVerificationNumberMinPrice || '', restoredPhoneSmsProvider);
     } else if (restoredPhoneSmsProvider === PHONE_SMS_PROVIDER_GRIZZLYSMS) {
@@ -13120,6 +13165,8 @@ function applySettingsState(state) {
     : (Boolean(state?.autoRunning) || isSyncPhase(state?.autoRunPhase ?? state?.phase));
   if (state?.autoRunTotalRuns && shouldSyncInitialRunCount) {
     inputRunCount.value = String(state.autoRunTotalRuns);
+  } else if (normalizePanelMode(state?.panelMode || DEFAULT_PANEL_MODE) === EXISTING_PLUS_OAUTH_JSON_PANEL_MODE) {
+    inputRunCount.value = String(Math.max(1, Math.floor(Number(state?.existingPlusTargetSuccessCount) || 1)));
   }
 
   applyAutoRunStatus(state);
@@ -16394,8 +16441,8 @@ function syncIpProxyPasswordToggleLabel() {
 
 function syncHeroSmsApiKeyToggleLabel() {
   syncToggleButtonLabel(btnToggleHeroSmsApiKey, inputHeroSmsApiKey, {
-    show: '显示接码 API Key',
-    hide: '隐藏接码 API Key',
+    show: '显示 SMSBower API Key',
+    hide: '隐藏 SMSBower API Key',
   });
 }
 
@@ -18291,8 +18338,9 @@ inputInbucketHost.addEventListener('blur', () => {
 inputRunCount.addEventListener('input', () => {
   clearPendingAutoRunStartRunCount();
   updateFallbackThreadIntervalInputState();
+  markSettingsDirty(true);
 });
-inputRunCount.addEventListener('blur', () => {
+inputRunCount.addEventListener('blur', async () => {
   if (shouldLockRunCountToEmailPool()) {
     syncRunCountFromConfiguredEmailPool();
     updateFallbackThreadIntervalInputState();
@@ -18300,6 +18348,7 @@ inputRunCount.addEventListener('blur', () => {
   }
   inputRunCount.value = String(getRunCountValue());
   updateFallbackThreadIntervalInputState();
+  await saveSettings({ silent: true }).catch(() => { });
 });
 
 inputAutoSkipFailures.addEventListener('change', async () => {

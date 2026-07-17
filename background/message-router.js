@@ -1788,9 +1788,30 @@
             await setState({
               mailProvider: 'hotmail-api',
               emailGenerator: 'duck',
+              plusModeEnabled: false,
+              plusAccountAccessStrategy: 'oauth',
+              hotmailServiceMode: 'local',
+              hotmailAliasEnabled: false,
+              phoneVerificationEnabled: true,
+              phoneSmsProvider: 'smsbower',
+              phoneSmsProviderOrder: ['smsbower'],
+              phoneSmsReuseEnabled: false,
+              freePhoneReuseEnabled: false,
+              freePhoneReuseAutoEnabled: false,
+              ipProxyEnabled: false,
+              operationDelayEnabled: true,
+              autoStepDelaySeconds: 0,
             });
             state.mailProvider = 'hotmail-api';
             state.emailGenerator = 'duck';
+            state.plusModeEnabled = false;
+            state.plusAccountAccessStrategy = 'oauth';
+            state.hotmailServiceMode = 'local';
+            state.hotmailAliasEnabled = false;
+            state.phoneVerificationEnabled = true;
+            state.phoneSmsProvider = 'smsbower';
+            state.phoneSmsProviderOrder = ['smsbower'];
+            state.ipProxyEnabled = false;
           }
           const autoRunStartValidation = validateAutoRunStart(state, { state });
           if (autoRunStartValidation?.ok === false) {

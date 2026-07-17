@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GuJumpgate Worker</title>
+  <link rel="stylesheet" href="worker.css">
+</head>
+<body>
+  <main class="worker-shell">
+    <header>
+      <span class="brand-mark" aria-hidden="true">GJ</span>
+      <div>
+        <h1>GuJumpgate Worker</h1>
+        <p id="workerIdentity">正在连接本机调度器...</p>
+      </div>
+    </header>
+
+    <section class="status-band" aria-live="polite">
+      <span id="statusDot" class="status-dot"></span>
+      <div>
+        <strong id="statusTitle">初始化</strong>
+        <p id="statusDetail">等待任务配置</p>
+      </div>
+    </section>
+
+    <dl class="worker-facts">
+      <div><dt>账号</dt><dd id="accountEmail">-</dd></div>
+      <div><dt>阶段</dt><dd id="flowPhase">-</dd></div>
+      <div><dt>当前节点</dt><dd id="currentNode">-</dd></div>
+      <div><dt>输出文件</dt><dd id="outputFile">-</dd></div>
+    </dl>
+
+    <section class="log-section">
+      <h2>最近状态</h2>
+      <ol id="workerLogs" class="worker-logs"></ol>
+    </section>
+  </main>
+  <script src="worker.js"></script>
+</body>
+</html>

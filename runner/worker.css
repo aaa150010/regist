@@ -1,0 +1,94 @@
+:root {
+  color-scheme: light;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f4f6f8;
+  color: #17202a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-width: 360px;
+  min-height: 100vh;
+  background: #f4f6f8;
+}
+
+.worker-shell {
+  width: min(760px, calc(100% - 32px));
+  margin: 32px auto;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.brand-mark {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 7px;
+  background: #202936;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+h1, h2, p { margin: 0; }
+h1 { font-size: 20px; line-height: 1.25; }
+header p { margin-top: 3px; color: #697586; font-size: 13px; }
+
+.status-band {
+  display: flex;
+  min-height: 78px;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid #d6dce3;
+  border-left: 4px solid #2f6fdd;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.status-dot {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #2f6fdd;
+  box-shadow: 0 0 0 4px #e4edff;
+}
+
+.status-band strong { font-size: 15px; }
+.status-band p { margin-top: 4px; color: #526170; font-size: 13px; overflow-wrap: anywhere; }
+.status-band.success { border-left-color: #16835d; }
+.status-band.success .status-dot { background: #16835d; box-shadow: 0 0 0 4px #dcf5eb; }
+.status-band.error { border-left-color: #c43c3c; }
+.status-band.error .status-dot { background: #c43c3c; box-shadow: 0 0 0 4px #f9e3e3; }
+
+.worker-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 22px 0;
+  border-top: 1px solid #d6dce3;
+  border-bottom: 1px solid #d6dce3;
+}
+
+.worker-facts div { min-width: 0; padding: 14px 8px; }
+.worker-facts dt { color: #697586; font-size: 12px; }
+.worker-facts dd { margin: 5px 0 0; font-size: 13px; font-weight: 650; overflow-wrap: anywhere; }
+
+.log-section h2 { margin-bottom: 10px; color: #526170; font-size: 13px; }
+.worker-logs { margin: 0; padding-left: 22px; color: #526170; font-size: 12px; line-height: 1.65; }
+.worker-logs li { padding-left: 3px; overflow-wrap: anywhere; }
+
+@media (max-width: 560px) {
+  .worker-shell { width: min(100% - 20px, 760px); margin: 18px auto; }
+  .worker-facts { grid-template-columns: 1fr; }
+  .worker-facts div { border-bottom: 1px solid #e5e9ee; }
+  .worker-facts div:last-child { border-bottom: 0; }
+}

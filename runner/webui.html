@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GuJumpgate 并发调度器</title>
+  <link rel="stylesheet" href="/webui.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-title">
+      <span class="app-mark" aria-hidden="true">GJ</span>
+      <div>
+        <h1>已有 Plus OAuth JSON</h1>
+        <p>多 Chrome Profile 并发调度器</p>
+      </div>
+    </div>
+    <div class="service-state">
+      <span id="helperDot" class="service-dot"></span>
+      <span id="helperState">正在检查 Hotmail helper</span>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <aside class="control-panel">
+      <form id="runnerForm" autocomplete="off">
+        <div class="control-scroll">
+        <section class="form-section">
+          <div class="section-heading">
+            <div>
+              <h2>微软邮箱账户池</h2>
+              <span id="accountCount">总数 0 · 可用 0 · 已导出 0 · 无效 0</span>
+            </div>
+            <div class="section-heading-actions">
+              <label class="file-button" for="accountFile">选择 TXT</label>
+              <input id="accountFile" type="file" accept=".txt,text/plain" hidden>
+              <button id="importAccountsButton" class="file-button" type="button">导入账户池</button>
+              <button id="retryFailedAccountsButton" class="file-button" type="button">重试失败</button>
+            </div>
+          </div>
+          <textarea id="accountsText" rows="9" spellcheck="false" placeholder="email----clientId----mailRefreshToken&#10;或 email----password----clientId----refreshToken"></textarea>
+        </section>
+
+        <section class="form-section">
+          <div class="section-heading">
+            <div>
+              <h2>独占代理池</h2>
+              <span id="proxyCount">0 条代理</span>
+            </div>
+          </div>
+          <textarea id="proxyPoolText" rows="7" spellcheck="false" placeholder="http://user:pass@host:port&#10;socks5://user:pass@host:port&#10;host:port:user:pass&#10;host:port"></textarea>
+          <label class="field proxy-protocol-field">
+            <span>无前缀代理协议</span>
+            <select id="proxyDefaultProtocol">
+              <option value="http">HTTP</option>
+              <option value="socks5">SOCKS5</option>
+            </select>
+          </label>
+          <p class="field-note">留空使用本机直连；代理少于并发数时按可用代理数调度，同一代理不会同时分配给多个 Worker。</p>
+        </section>
+
+        <section class="form-section">
+          <div class="section-heading">
+            <div>
+              <h2>接码设置</h2>
+              <span>SMSBower</span>
+            </div>
+          </div>
+          <div class="compact-fields">
+            <div class="field full-field">
+              <div class="field-label-row">
+                <label for="smsBowerApiKey">SMSBower API Key</label>
+                <button id="querySmsBowerBalanceButton" class="inline-command" type="button">查询余额</button>
+              </div>
+              <input id="smsBowerApiKey" type="password" autocomplete="new-password">
+              <span id="smsBowerBalance" class="balance-value">余额未查询</span>
+            </div>
+            <label class="inline-toggle full-field">
+              <input id="showApiKey" type="checkbox">
+              <span>显示 API Key</span>
+            </label>
+            <label class="field full-field">
+              <span>国家优先级</span>
+              <select id="smsBowerCountryIds" class="country-select" multiple size="6">
+                <option value="33" selected>Colombia</option>
+                <option value="151" selected>Chile</option>
+                <option value="73" selected>Brazil</option>
+                <option value="16" selected>United Kingdom</option>
+                <option value="31" selected>South Africa</option>
+                <option value="4" selected>Philippines</option>
+                <option value="6" selected>Indonesia</option>
+                <option value="187" selected>USA Physical</option>
+                <option value="46" selected>Sweden</option>
+                <option value="117" selected>Portugal</option>
+              </select>
+            </label>
+            <label class="field full-field">
+              <span>拿号优先级</span>
+              <select id="smsBowerAcquirePriority">
+                <option value="country">国家优先</option>
+                <option value="price">低价优先</option>
+                <option value="price_high">高价优先</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>最低购买价（USD）</span>
+              <input id="smsBowerMinPrice" type="number" min="0" step="0.0001" value="0.03" placeholder="不限制">
+            </label>
+            <label class="field">
+              <span>价格上限（USD）</span>
+              <input id="smsBowerMaxPrice" type="number" min="0" step="0.0001" value="0.15" placeholder="不限制">
+            </label>
+            <label class="field full-field">
+              <span>指定价格档位</span>
+              <input id="smsBowerPreferredPrice" type="number" min="0" step="0.0001" placeholder="自动选择">
+            </label>
+          </div>
+
+          <details class="sms-retry-settings">
+            <summary>重试与轮询</summary>
+            <div class="sms-settings-grid">
+              <label class="field"><span>验证码重发</span><input id="verificationResendCount" type="number" min="0" max="20" value="0"></label>
+              <label class="field"><span>换号上限</span><input id="phoneReplacementLimit" type="number" min="1" max="100" value="3"></label>
+              <label class="field"><span>验证码限时（秒）</span><input id="phoneCodeWaitSeconds" type="number" min="15" max="300" value="45"></label>
+              <label class="field"><span>超时等待轮数</span><input id="phoneCodeTimeoutWindows" type="number" min="1" max="10" value="2"></label>
+              <label class="field"><span>轮询间隔（秒）</span><input id="phoneCodePollIntervalSeconds" type="number" min="1" max="30" value="3"></label>
+              <label class="field"><span>每轮轮询次数</span><input id="phoneCodePollMaxRounds" type="number" min="1" max="120" value="4"></label>
+              <label class="field"><span>取号重试轮数</span><input id="phoneActivationRetryRounds" type="number" min="1" max="10" value="3"></label>
+              <label class="field"><span>WA 重试次数</span><input id="whatsappRestartMaxAttempts" type="number" min="1" max="20" value="5"></label>
+              <label class="inline-toggle full-field"><input id="whatsappRestartEnabled" type="checkbox" checked><span>WhatsApp 页面自动换号重试</span></label>
+              <label class="inline-toggle full-field"><input id="phoneAutoReleaseOnStop" type="checkbox" checked><span>停止任务时释放当前号码</span></label>
+            </div>
+          </details>
+        </section>
+
+        <section class="form-section compact-fields">
+          <label class="field">
+            <span>并发数</span>
+            <input id="concurrency" type="number" min="1" max="10" step="1" value="10">
+          </label>
+          <label class="field">
+            <span>单账号超时（分钟）</span>
+            <input id="timeoutMinutes" type="number" min="5" max="120" step="1" value="25">
+          </label>
+          <label class="field full-field">
+            <span>JSON 输出目录</span>
+            <input id="outputDir" type="text" spellcheck="false">
+          </label>
+        </section>
+
+        <details class="advanced-settings">
+          <summary>高级设置</summary>
+          <div class="advanced-fields">
+            <label class="field">
+              <span>Hotmail helper</span>
+              <input id="helperBaseUrl" type="url" spellcheck="false">
+            </label>
+            <label class="field">
+              <span>临时 Profile 根目录</span>
+              <input id="profileRoot" type="text" spellcheck="false">
+            </label>
+            <label class="field">
+              <span>Chrome 可执行文件</span>
+              <input id="chromePath" type="text" spellcheck="false">
+            </label>
+            <label class="inline-toggle">
+              <input id="cleanupProfiles" type="checkbox" checked>
+              <span>任务结束后清理临时 Profile</span>
+            </label>
+          </div>
+        </details>
+
+          <div id="formMessage" class="form-message" hidden></div>
+        </div>
+        <div class="control-footer">
+          <div class="primary-actions">
+            <button id="startButton" class="primary-button" type="submit">一键启动</button>
+            <button id="stopButton" class="danger-button" type="button" disabled>一键关闭所有 Worker</button>
+          </div>
+          <button id="diagnosticButton" class="secondary-button" type="button">运行 Profile 隔离自检</button>
+        </div>
+      </form>
+    </aside>
+
+    <section class="run-panel">
+      <div class="run-toolbar">
+        <div>
+          <h2 id="runTitle">等待启动</h2>
+          <p id="runMeta">导入账号、代理和 SMSBower Key 后启动</p>
+        </div>
+        <span id="runBadge" class="run-badge idle">空闲</span>
+      </div>
+
+      <div class="summary-strip">
+        <div><span>总任务</span><strong id="totalCount">0</strong></div>
+        <div><span>排队</span><strong id="queuedCount">0</strong></div>
+        <div><span>运行中</span><strong id="runningCount">0</strong></div>
+        <div><span>成功</span><strong id="successCount">0</strong></div>
+        <div><span>失败</span><strong id="failedCount">0</strong></div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>邮箱 / 自检</th>
+              <th>Worker</th>
+              <th>代理</th>
+              <th>出口 IP</th>
+              <th>阶段</th>
+              <th>状态</th>
+              <th>结果</th>
+            </tr>
+          </thead>
+          <tbody id="jobRows">
+            <tr class="empty-row"><td colspan="8">暂无任务</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script src="/webui.js"></script>
+</body>
+</html>

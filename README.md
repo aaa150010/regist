@@ -1,216 +1,181 @@
 # GuJumpgate
 
-> [!CAUTION]
-> ## 项目已停止维护
->
-> 本项目自 **2026 年 7 月 11 日** 起停止维护。
->
-> 由于目标平台的注册、支付及风控策略持续变化，现有功能可能已经部分或全部失效。
-> 本仓库不再提供问题排查、兼容性更新或安全修复，也不建议继续在真实账号或支付环境中使用。
->
-> 仓库仅作为历史代码留档。你可以在遵守许可证、相关平台服务条款及适用法律的前提下 Fork，但需自行承担使用和维护责任。
->
-> **以下内容为停止维护前的历史文档，不代表当前仍然可用。**
+GuJumpgate 是一个 Chrome 浏览器扩展，用于把你已经拥有 Plus 资格的 Outlook / Hotmail 账号，通过 OpenAI OAuth 登录流程导出为 SUB2API 可用的本地 JSON 文件。
 
-一个曾用于自动化相关注册与流程操作的浏览器扩展。本仓库现仅作为历史代码与开发记录保留。
+当前版本只保留“已有 Plus OAuth JSON”流程，不包含注册账号、Plus 支付、PayPal、代理购买或自动导入 SUB2API 等功能。
 
-> [!WARNING]
-> 下方记录的是停止维护前的环境与流程说明。第三方页面、接口和风控策略可能已经发生变化，请勿将其视为当前可用性承诺。
->
+## 主要用途
 
-## 已实现能力
+适合已经有一批 Plus 账号，并且希望批量生成本地 SUB2API / Codex 兼容认证 JSON 的场景。
 
-1. **自动注册 Free 账号**
+流程大致为：
 
-   借助 FlowPilot 项目实现 Free 账号的自动注册。
+1. 从“微软邮箱账户池”选择一个未使用账号。
+2. 打开 OpenAI OAuth 登录页。
+3. 使用邮箱验证码登录。
+4. 如页面要求手机号验证，则调用 SMSBower 接码并提交验证码。
+5. 完成 OAuth 授权。
+6. 交换 `access_token` 和 `refresh_token`。
+7. 保存本地 JSON 到项目根目录的 `sub2api/` 文件夹。
 
-2. **PayPal 激活 Plus 全流程**
+导出的 JSON 会包含：
 
-   - 自动跳转 Stripe 长链接
-   - 自动填写 Stripe 账单并跳转 PayPal
-   - 自动填写 PayPal 账单并完成流程
+```json
+{
+  "type": "codex",
+  "email": "example@outlook.com",
+  "access_token": "...",
+  "refresh_token": "...",
+  "last_refresh": "..."
+}
+```
 
-3. **Hotmail / Outlook 自动别名功能**
+## 账号格式
 
-4. **PayPal 号码池管理**
+在侧边栏的“微软邮箱账户池”中导入账号，每行一个：
 
-5. **自动 OAuth 回调到本地及各面板**
+```text
+email----password----clientId----mailRefreshToken
+```
 
-   对 FlowPilot 原有回调流程做了调整和适配。
+其中：
 
-6. **支持跳过 OAuth**
+- `email`：Outlook / Hotmail 邮箱。
+- `password`：邮箱密码，仅用于记录和展示。
+- `clientId`：微软 OAuth client id。
+- `mailRefreshToken`：用于本地助手读取邮箱验证码。
 
-   忽略 RT，生成只有 AT 的 JSON 文件到本地。
+## 本地助手
 
-## 前提要求
+邮箱收码和本地 JSON 写入依赖 Hotmail 本地助手。
 
-1. 1 个带 API、且能连续正常接收 PayPal 验证码的 JP +81 接码手机号
-2. 1 个或 N 个支持 `IMAP` 和 `Graph` 的 Outlook 邮箱 或者 自建 Cloudflare Temp Email edu 前缀，如 @edu.openai.comedu.openai.com 这样才有试用资格
-   （推荐使用outlook，实测存活率高于自建域名邮箱，也可能是我杂米的原因）
-3. 1 个相对干净、支持 PayPal 注册的 JP 代理 (干净就不会跳 PAYPAL 的注册滑块，账单页面的 Captcha 扩展已经设置了自动屏蔽)
-4. 1 个充值好的SMS平台，开通 APIKEY 用于Oauth接码
-   （具体选择SMS平台的选择，你可以参考我的对比站：https://sms.fur.li/  ）
+macOS：
 
-> [!NOTE]
-> 自建 Cloudflare Temp Email / Cloud Mail 需要使用 `edu` 前缀，例如 `edu.openai.com`，才有试用资格。
->
-> PayPal 注册代理越干净，越不容易触发 PayPal 注册滑块。账单页面的 Captcha 扩展已经实现了自动屏蔽。
+```bash
+./start-hotmail-helper.command
+```
 
-## 测试环境
+Windows：
 
-- 历史测试记录：曾在特定时间和环境下连续运行 10 次；该结果不代表当前可用性或成功率
-- 浏览器：Chrome `148.0.7778.168`（64 位正式版），开启无痕模式
-- 网络环境： JP 自建代理
+```bat
+start-hotmail-helper.bat
+```
 
-过程中遇到任何卡死的问题，都可以先停止，然后点击流程的各个节点进行重试，也可以点击旁边选择跳过。
+默认监听地址：
 
-## 安装与使用
+```text
+http://127.0.0.1:17373
+```
 
-先到本仓库的 [Releases](https://github.com/FoundZiGu/GuJumpgate/releases) 页面下载扩展压缩包并解压。
+健康检查地址：
 
-### 1. 打开扩展开发者模式
+```text
+http://127.0.0.1:17373/health
+```
 
-打开 `chrome://extensions/`，开启开发者模式。
+如果扩展提示无法连接本地助手，请先确认助手窗口已经启动、端口没有被占用，并且浏览器可以访问上面的健康检查地址。
 
-![打开 Chrome 扩展开发者模式](docs/images/github-readme-1779190547983.png)
+## 接码配置
 
-### 2. 加载扩展目录
+当前主流程使用 SMSBower 接收 OpenAI 手机验证码。
 
-选择“加载已解压的扩展程序”，然后选择刚才解压出的文件夹。
+在扩展侧边栏中配置：
 
-![加载未打包的扩展程序](docs/images/readme-load-extension.png)
+- SMS provider：选择 `SMSBower`
+- API Key：填写你的 SMSBower API Key
+- 国家：按你的需求选择，默认会使用内置国家顺序
+- 最低购买价：默认 `0.03` 美元
+- 最高购买价：默认 `0.15` 美元
 
-### 3. 启用无痕权限
+如果账号已经满足手机号要求，页面直接进入 OAuth 授权页，则不会新增接码。
 
-在扩展详情页中勾选“在无痕模式下启用”。
+## 输出目录
 
-![启用扩展的无痕模式权限](docs/images/readme-incognito-permission.png)
+导出的 JSON 固定保存到项目根目录：
 
-### 4. 配置代理
+```text
+sub2api/
+```
 
-停止维护前记录的路径为 **全程 JP 代理**。
-该路径当前是否可用未经验证，也不再提供兼容性支持。
+文件名格式：
 
-#### 方案一：直接使用（历史说明）
+```text
+sub2api-{email}.json
+```
 
-停止维护前的操作方式是开启代理工具的规则 / 全局 JP 代理；当前效果未经验证。
+如果同名文件已经存在，会自动追加时间戳，避免覆盖。
 
-#### 方案二：云端转换（公益，当前不可用）
+注意：`sub2api/*.json` 已加入 `.gitignore`，这些文件包含 refresh token，不应该提交到 Git。
 
-> [!WARNING]
-> 长链接链路当前已不可用，暂不建议开启云端转换。该入口仅保留用于后续恢复或测试。
+## 安装扩展
 
-#### 方案三：本地配置代理
+1. 打开 Chrome：
 
-配置本地用于支付转换的代理，出口必须是 JP 代理。
+   ```text
+   chrome://extensions/
+   ```
 
-![配置支付转换代理](docs/images/readme-payment-proxy.png)
+2. 开启“开发者模式”。
 
-然后代理工具开启全局 JP，或者配置好相应规则分流至 JP。
+3. 点击“加载已解压的扩展程序”。
 
-### 5. 启动 Hotmail Helper
+4. 选择本项目目录。
 
-请注意：本地 JSON 生成导出依赖本地助手。无论你是否使用 Hotmail / Outlook 邮箱，都请启动。
+5. 修改代码后，需要在扩展管理页点击“重新加载”。
 
-运行解压目录内的脚本：
+## 使用步骤
 
-- Windows：`start-hotmail-helper.bat`
-- macOS：`start-hotmail-helper.command`
+1. 启动 Hotmail 本地助手。
+2. 打开扩展侧边栏。
+3. 在“微软邮箱账户池”导入 Outlook / Hotmail 账号。
+4. 配置 SMSBower API Key 和接码参数。
+5. 设置目标成功数量。
+6. 点击启动。
+7. 成功导出的 JSON 到 `sub2api/` 文件夹中查看。
 
-如果启用 PPBoom / PP 爆破模式，请额外启动 PPBoom 本地助手：
+## 状态处理
 
-- Windows：`start-ppboom.bat`
-- macOS：`start-ppboom.command`
+扩展会为账号记录状态：
 
-macOS 首次运行如提示没有权限，可在终端进入解压目录后执行：`chmod +x start-hotmail-helper.command start-ppboom.command`
+- `pending`：待使用
+- `running`：运行中
+- `success`：已成功导出 JSON
+- `failed`：失败
+- `used`：已使用或不可再用
 
-![运行 start-hotmail-helper 脚本](docs/images/github-readme-1779193024860.png)
+常见失败原因：
 
-### 6. 配置扩展参数
+- `ACCOUNT_DEACTIVATED`：OpenAI 提示账号被删除或停用，会标记为已用并切换下一个账号。
+- `refresh_token_invalid`：微软邮箱 refresh token 失效，无法继续读取邮箱验证码。
+- 手机号已被使用：SMSBower 取到的号码无法通过 OpenAI 验证，会换号重试，超过次数后失败。
+- 请求次数过多：触发限流后会等待一段时间再继续。
 
-在扩展中打开侧边栏，按你的环境配置参数。
+## 安全提醒
 
-#### 选择最终 JSON 导出到的平台
+- 请只处理你有权使用的账号。
+- `mailRefreshToken`、SMSBower API Key、导出的 `refresh_token` 都是敏感信息。
+- 不要把 `sub2api/*.json`、本地日志、配置备份上传到公开仓库。
+- 使用本项目时请自行遵守目标平台服务条款和所在地法律法规。
 
-账号接入策略建议选择：`手机号注册/绑定 Oauth`。
+## 开发说明
 
-![选择最终 JSON 导出平台](docs/images/README-1780155605371.png)
+核心文件：
 
-> [!WARNING]
-> OAuth 目前严重风控，要求绑定手机号，仅推荐使用 `手机号注册/绑定 Oauth`。
+- `background.js`：主流程编排、账号选择、OAuth JSON 保存。
+- `background/steps/oauth-login.js`：OAuth 邮箱登录步骤。
+- `background/steps/fetch-login-code.js`：邮箱验证码获取。
+- `content/signup-page.js`：页面状态识别和表单操作。
+- `scripts/hotmail_helper.py`：本地 Hotmail 收码助手和本地 JSON 写入。
+- `sidepanel/sidepanel.js`：扩展侧边栏交互。
 
-#### 模式选择
+语法检查：
 
-请保持默认或手动选择日区PP Plus Checkout
+```bash
+node --check background.js
+node --check sidepanel/sidepanel.js
+PYTHONPYCACHEPREFIX=/tmp/gujumpgate-pycache python3 -m py_compile scripts/hotmail_helper.py
+```
 
-![选择账号接入策略](docs/images/README-1780156040069.png)
+## 版权与来源
 
-#### 验证码接口
-
-填写可直接 `GET` 请求的 `http` / `https` 地址。
-
-![填写验证码接口](docs/images/readme-verification-url.png)
-
-#### PAYPAL 接码电话
-
-填写 PayPal 接码电话，注意按扩展提示填写格式。
-
-![填写 PAYPAL 接码电话](docs/images/readme-paypal-phone.png)
-
-#### 邮箱渠道
-
-选择对应的邮箱渠道。自建邮箱需使用 `edu` 前缀获得试用资格。
-
-![选择邮箱渠道](docs/images/readme-mail-provider.png)
-
-然后填写或导入各自邮箱渠道所需的配置。
-
-#### PP 爆破模式
-
-PPBoom / PP 爆破模式适合在独立指纹浏览器环境中跑 PayPal 相关链路。启用前请先确认 PPBoom 本地助手和指纹浏览器都已启动。
-
-1. 手动运行扩展文件夹内的 `start-ppboom.bat` 或 `start-ppboom.command`。
-2. 启动 [RoxyBrowser](https://roxybrowser.cn/invite/7hPFNf) 或 AdsPower，并准备可用的窗口 / Profile。(选择移动端指纹，推荐IOS，窗口推荐配置动态住宅代理)
-   推荐优先使用 RoxyBrowser，免费额度更优，配合动态住宅代理稳定性更好。
-3. 在侧边栏启用 PPBoom / PP 爆破模式。
-4. 在 PPBoom 浏览器选项中选择 `RoxyBrowser` 或 `AdsPower`。
-5. 配置对应的 API 地址、API Key 和窗口 / Profile ID。
-6. 配置 JP 代理，推荐使用动态住宅代理。
-7. 推荐指纹浏览器配置
-
-![配置 PP 爆破模式](docs/images/5446fb4f-7e88-4609-8a35-66e753fb1fb2.png)
-
-#### 接码设置
-
-![导入邮箱渠道配置](docs/images/README-1780155776707.png)
-
-- 选择接码服务商
-- 配置服务商顺序
-- 配置国家优先级
-- 配置接码 API
-- 配置价格上限
-- 其他默认即可
-
-### 7. 开始运行
-
-保存配置后即可开始运行。
-
-![开始运行扩展流程](docs/images/github-readme-1779194981001.png)
-
-## 版权与来源说明
-
-本项目基于开源项目 [QLHazyCoder/FlowPilot](https://github.com/QLHazyCoder/FlowPilot) 进行修改、移植与二次开发，其部分早期代码与 [whwh1233/StepFlow-Duck](https://github.com/whwh1233/StepFlow-Duck) 具有共同历史。
-
-原项目及其相关开源部分采用 MIT License 发布。根据 MIT License，你可以在保留原版权声明和许可声明的前提下使用、修改、分发本项目的相关代码。
-
-为避免歧义，原项目作者、历史贡献者与当前二开版本之间不存在默认的认可、担保或背书关系。本项目中新增的适配、流程调整、脚本移植与文档整理内容，除另有说明外，均由当前维护者负责。
-
-如果你分发本项目或其修改版本，请一并保留仓库中的 `LICENSE` 及相关来源说明文件。
-
-## 使用提示
-
-- 使用者应自行遵守目标平台服务条款、适用法律及其所在地区的监管要求
-
-## 友情链接
-
-- [LINUX DO - 新的理想型社区](https://linux.do/)
+本项目基于 GuJumpgate / FlowPilot 相关代码修改而来。原项目及其相关开源部分采用 MIT License 发布。分发或修改本项目时，请保留仓库中的 `LICENSE` 及相关来源说明。
